@@ -57,7 +57,7 @@ export function ChatInterface() {
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: "ai",
-                content: "I've analyzed the available documents. Based on the context, RAG (Retrieval-Augmented Generation) significantly improves response quality by grounding the model on external knowledge.",
+                content: "The RAG (Retrieval-Augmented Generation) architecture fundamentally merges neural generation with precise information retrieval [1]. By grounding the model in external curated knowledge [2], it dramatically reduces hallucinations and ensures that responses are always contextually relevant and factual [3].",
                 timestamp: new Date().toISOString()
             };
             setMessages(prev => [...prev, aiMsg]);
@@ -72,25 +72,25 @@ export function ChatInterface() {
     }, [messages, isTyping]);
 
     return (
-        <div className="flex flex-col h-full w-full max-w-5xl mx-auto">
+        <div className="flex flex-col h-full w-full max-w-5xl mx-auto relative">
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scroll-smooth"
+                className="flex-1 overflow-y-auto p-6 md:p-12 space-y-10 scroll-smooth scrollbar-hide"
             >
                 <AnimatePresence initial={false}>
                     {messages.map((msg, index) => (
-                        <div key={msg.id}>
+                        <div key={msg.id} className="relative">
                             <MessageItem message={msg} />
 
                             {/* Show RAG visualization after specific AI messages (mock logic) */}
                             {msg.role === "ai" && index === messages.length - 1 && index > 0 && (
                                 <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: "auto" }}
-                                    transition={{ delay: 0.5 }}
-                                    className="pl-14 max-w-[80%]"
+                                    initial={{ opacity: 0, height: 0, y: -10 }}
+                                    animate={{ opacity: 1, height: "auto", y: 0 }}
+                                    transition={{ type: "spring", stiffness: 200, damping: 25, delay: 0.8 }}
+                                    className="pl-16 mb-10 overflow-hidden"
                                 >
-                                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide mask-fade-right">
+                                    <div className="flex gap-5 overflow-x-auto pb-6 pt-2 scrollbar-hide mask-fade-right">
                                         {mockSources.map((s, i) => (
                                             <SourceCard key={s.id} source={s} index={i} />
                                         ))}
@@ -103,19 +103,21 @@ export function ChatInterface() {
 
                 {isTyping && (
                     <motion.div
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="pl-4"
+                        className="pl-5"
                     >
                         <RAGThinking isExpanded={true} />
                     </motion.div>
                 )}
 
-                <div className="h-4" /> {/* Spacer */}
+                <div className="h-16" /> {/* Larger spacer for floating input bar */}
             </div>
 
-            <div className="flex-shrink-0 z-20">
-                <MessageInput onSendMessage={handleSendMessage} isLoading={isTyping} />
+            <div className="flex-shrink-0 z-30 absolute bottom-0 left-0 right-0 pointer-events-none">
+                <div className="pointer-events-auto">
+                    <MessageInput onSendMessage={handleSendMessage} isLoading={isTyping} />
+                </div>
             </div>
         </div>
     );

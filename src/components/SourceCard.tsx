@@ -2,6 +2,7 @@
 
 import React from "react";
 import { FileText, ExternalLink } from "lucide-react";
+import { motion } from "framer-motion";
 
 export interface Source {
     id: string;
@@ -17,22 +18,25 @@ interface SourceCardProps {
 
 export function SourceCard({ source, index }: SourceCardProps) {
     return (
-        <div className="flex flex-col gap-2 p-3 rounded-lg bg-secondary/50 border border-border/50 hover:bg-secondary hover:border-border transition-all cursor-pointer group w-60 flex-shrink-0">
-            <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                <div className="flex items-center gap-1.5">
-                    <FileText size={12} />
-                    <span className="font-mono">SOURCE {index + 1}</span>
+        <motion.div
+            whileHover={{ y: -5, scale: 1.02 }}
+            className="flex flex-col gap-2 p-4 rounded-3xl liquid-glass border border-white/10 hover:border-white/20 transition-all cursor-pointer group w-64 flex-shrink-0 shadow-xl"
+        >
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground/60 mb-1 font-bold tracking-widest uppercase">
+                <div className="flex items-center gap-2">
+                    <FileText size={12} className="text-primary" />
+                    <span>REF {index + 1}</span>
                 </div>
                 {source.url && <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />}
             </div>
 
-            <div className="font-medium text-sm line-clamp-1 text-foreground">
+            <div className="font-semibold text-[14px] line-clamp-1 text-foreground leading-tight">
                 {source.title}
             </div>
 
-            <div className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+            <div className="text-[12px] text-muted-foreground line-clamp-2 leading-relaxed opacity-70">
                 {source.snippet}
             </div>
-        </div>
+        </motion.div>
     );
 }
