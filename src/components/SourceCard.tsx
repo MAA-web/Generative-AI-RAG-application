@@ -3,6 +3,7 @@
 import React from "react";
 import { FileText, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
+import clsx from "clsx";
 
 export interface Source {
     id: string;
@@ -20,7 +21,11 @@ export function SourceCard({ source, index }: SourceCardProps) {
     return (
         <motion.div
             whileHover={{ y: -5, scale: 1.02 }}
-            className="flex flex-col gap-2 p-4 rounded-3xl liquid-glass border border-white/10 hover:border-white/20 transition-all cursor-pointer group w-64 flex-shrink-0 shadow-xl"
+            onClick={() => source.url && window.open(source.url, '_blank')}
+            className={clsx(
+                "flex flex-col gap-2 p-4 rounded-3xl liquid-glass border border-white/10 hover:border-white/20 transition-all group w-64 flex-shrink-0 shadow-xl",
+                source.url ? "cursor-pointer" : "cursor-default"
+            )}
         >
             <div className="flex items-center justify-between text-[11px] text-muted-foreground/60 mb-1 font-bold tracking-widest uppercase">
                 <div className="flex items-center gap-2">

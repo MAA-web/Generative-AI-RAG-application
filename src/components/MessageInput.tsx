@@ -1,17 +1,18 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, Mic, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Send, Paperclip, Mic, Image as ImageIcon, Loader2, Globe } from "lucide-react";
 import { motion } from "framer-motion";
 import clsx from "clsx";
 
 interface MessageInputProps {
-    onSendMessage: (content: string) => void;
+    onSendMessage: (content: string, useWebSearch: boolean) => void;
     isLoading?: boolean;
 }
 
 export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
     const [content, setContent] = useState("");
+    const [useWebSearch, setUseWebSearch] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -23,7 +24,7 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
 
     const handleSend = () => {
         if (!content.trim() || isLoading) return;
-        onSendMessage(content);
+        onSendMessage(content, useWebSearch);
         setContent("");
     };
 
@@ -58,8 +59,15 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
                             <button className="p-3 rounded-[1.25rem] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all active:scale-90">
                                 <Paperclip size={20} />
                             </button>
-                            <button className="p-3 rounded-[1.25rem] text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all active:scale-90">
-                                <ImageIcon size={20} />
+                            <button
+                                onClick={() => setUseWebSearch(!useWebSearch)}
+                                className={clsx(
+                                    "p-3 rounded-[1.25rem] transition-all active:scale-90 flex items-center gap-2",
+                                    useWebSearch ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                                )}
+                            >
+                                <Globe size={20} />
+                                {useWebSearch && <span className="text-xs font-bold uppercase tracking-wider">Web Search</span>}
                             </button>
                         </div>
 

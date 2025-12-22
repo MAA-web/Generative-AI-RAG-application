@@ -6,6 +6,7 @@ import { MessageInput } from "./MessageInput";
 import { RAGThinking } from "./RAGThinking";
 import { SourceCard, Source } from "./SourceCard";
 import { motion, AnimatePresence } from "framer-motion";
+import { api } from "@/lib/api";
 
 export function ChatInterface() {
     const [messages, setMessages] = useState<Message[]>([
@@ -17,30 +18,10 @@ export function ChatInterface() {
         }
     ]);
     const [isTyping, setIsTyping] = useState(false);
+    const [retrievedSources, setRetrievedSources] = useState<Source[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Mock sources for demonstration
-    const mockSources: Source[] = [
-        {
-            id: "s1",
-            title: "Introduction to Neural Networks.pdf",
-            snippet: "Neural networks are computing systems inspired by the biological neural networks that constitute animal brains...",
-            url: "#"
-        },
-        {
-            id: "s2",
-            title: "Transformer Architecture Research",
-            snippet: "The Transformer is a deep learning model that adopts the mechanism of self-attention, differentially weighing the significance...",
-            url: "#"
-        },
-        {
-            id: "s3",
-            title: "RAG Overview 2024",
-            snippet: "Retrieval-Augmented Generation (RAG) is a technique that enhances the accuracy and reliability of generative AI models...",
-        }
-    ];
-
-    const handleSendMessage = async (content: string) => {
+    const handleSendMessage = async (content: string, useWebSearch: boolean) => {
         // Add user message
         const userMsg: Message = {
             id: Date.now().toString(),
@@ -48,21 +29,54 @@ export function ChatInterface() {
             content,
             timestamp: new Date().toISOString()
         };
-        setMessages(prev => [...prev, userMsg]);
+        setMessages((prev: Message[]) => [...prev, userMsg]);
         setIsTyping(true);
+        setRetrievedSources([]); // Reset sources for new query
 
-        // Simulate AI response delay and "thinking"
-        setTimeout(() => {
+        try {
+            const response = await api.query({
+                question: content,
+                use_web_search: useWebSearch
+            });
+
+            // Map API retrieved chunks to SourceCard format
+            const docSources: Source[] = response.retrieved_chunks.map(chunk => ({
+                id: chunk.chunk_id,
+                title: chunk.source,
+                snippet: chunk.text,
+                url: undefined
+            }));
+
+            // Map web results if available
+            const webSources: Source[] = (response.web_results || []).map((res, i) => ({
+                id: `web-${i}-${Date.now()}`,
+                title: res.title,
+                snippet: res.snippet,
+                url: res.url
+            }));
+
+            setRetrievedSources([...docSources, ...webSources]);
+
             // Add AI response
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: "ai",
-                content: "The RAG (Retrieval-Augmented Generation) architecture fundamentally merges neural generation with precise information retrieval [1]. By grounding the model in external curated knowledge [2], it dramatically reduces hallucinations and ensures that responses are always contextually relevant and factual [3].",
+                content: response.answer,
                 timestamp: new Date().toISOString()
             };
-            setMessages(prev => [...prev, aiMsg]);
+            setMessages((prev: Message[]) => [...prev, aiMsg]);
+        } catch (error) {
+            console.error("Query failed:", error);
+            const errorMsg: Message = {
+                id: (Date.now() + 1).toString(),
+                role: "ai",
+                content: "I'm sorry, I encountered an error while processing your request. Please ensure the backend is running.",
+                timestamp: new Date().toISOString()
+            };
+            setMessages((prev: Message[]) => [...prev, errorMsg]);
+        } finally {
             setIsTyping(false);
-        }, 3000);
+        }
     };
 
     useEffect(() => {
@@ -82,17 +96,17 @@ export function ChatInterface() {
                         <div key={msg.id} className="relative">
                             <MessageItem message={msg} />
 
-                            {/* Show RAG visualization after specific AI messages (mock logic) */}
-                            {msg.role === "ai" && index === messages.length - 1 && index > 0 && (
+                            {/* Show RAG visualization after the latest AI message if sources exist */}
+                            {msg.role === "ai" && index === messages.length - 1 && retrievedSources.length > 0 && (
                                 <motion.div
                                     initial={{ opacity: 0, height: 0, y: -10 }}
                                     animate={{ opacity: 1, height: "auto", y: 0 }}
-                                    transition={{ type: "spring", stiffness: 200, damping: 25, delay: 0.8 }}
+                                    transition={{ type: "spring", stiffness: 200, damping: 25, delay: 0.5 }}
                                     className="pl-16 mb-10 overflow-hidden"
                                 >
                                     <div className="flex gap-5 overflow-x-auto pb-6 pt-2 scrollbar-hide mask-fade-right">
-                                        {mockSources.map((s, i) => (
-                                            <SourceCard key={s.id} source={s} index={i} />
+                                        {retrievedSources.map((s, i) => (
+                                            <SourceCard key={`${s.id}-${i}`} source={s} index={i} />
                                         ))}
                                     </div>
                                 </motion.div>

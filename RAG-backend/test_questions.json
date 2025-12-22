@@ -1,0 +1,55 @@
+{
+  "test_questions": [
+    {
+      "question": "What is Micro Center's return policy?",
+      "expected_keywords": ["return", "policy", "refund", "exchange", "timeframe"],
+      "category": "returns"
+    },
+    {
+      "question": "How long do I have to return an item?",
+      "expected_keywords": ["return", "time", "days", "period", "deadline"],
+      "category": "returns"
+    },
+    {
+      "question": "Can I return opened items?",
+      "expected_keywords": ["opened", "unopened", "condition", "packaging", "sealed"],
+      "category": "returns"
+    },
+    {
+      "question": "What items are not eligible for return?",
+      "expected_keywords": ["non-returnable", "excluded", "restrictions", "eligible"],
+      "category": "returns"
+    },
+    {
+      "question": "Do I need a receipt to return an item?",
+      "expected_keywords": ["receipt", "proof", "purchase", "documentation", "required"],
+      "category": "returns"
+    },
+    {
+      "question": "What is the warranty policy?",
+      "expected_keywords": ["warranty", "coverage", "protection", "guarantee", "period"],
+      "category": "warranty"
+    },
+    {
+      "question": "How do I exchange an item?",
+      "expected_keywords": ["exchange", "swap", "replace", "process", "procedure"],
+      "category": "exchanges"
+    },
+    {
+      "question": "What are the shipping options?",
+      "expected_keywords": ["shipping", "delivery", "options", "methods", "time"],
+      "category": "shipping"
+    },
+    {
+      "question": "Can I return items purchased online in-store?",
+      "expected_keywords": ["online", "in-store", "return", "location", "purchase"],
+      "category": "returns"
+    },
+    {
+      "question": "What is the refund process?",
+      "expected_keywords": ["refund", "process", "method", "payment", "timeline"],
+      "category": "refunds"
+    }
+  ]
+}
+
