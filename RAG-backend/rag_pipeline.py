@@ -100,7 +100,8 @@ class RAGPipeline:
         return self.retriever.retrieve(query, top_k=top_k)
     
     def generate_answer(self, question: str, context_chunks: List[Dict[str, Any]], 
-                       use_web_search: bool = False, web_results: Optional[List[Dict[str, Any]]] = None) -> tuple[str, List[str]]:
+                       use_web_search: bool = False, web_results: Optional[List[Dict[str, Any]]] = None,
+                       prompt_template: str = 'balanced') -> tuple[str, List[str]]:
         """
         Generate answer using retrieved context, optionally with web search results.
         
@@ -109,6 +110,7 @@ class RAGPipeline:
             context_chunks: Retrieved chunks
             use_web_search: Whether to include web search results
             web_results: Pre-fetched web search results (optional)
+            prompt_template: Prompt template to use ('strict', 'balanced', 'permissive')
             
         Returns:
             Tuple of (answer, citations)
@@ -138,11 +140,13 @@ class RAGPipeline:
         try:
             print(question)
             print(context)
+            print(f"Using prompt template: {prompt_template}")
             print("--------------------------------")
             answer = self.llm_client.generate(
                 prompt=question,
                 context=context,
-                max_tokens=512
+                max_tokens=512,
+                template=prompt_template
             )
         except Exception as e:
             answer = f"I apologize, but I encountered an error generating a response: {str(e)}. Please try again or contact Micro Center customer service for assistance."

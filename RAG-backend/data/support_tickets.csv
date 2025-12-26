@@ -1,0 +1,2 @@
+ticket_id,order_id,issue,priority,created_at,status
+TKT-20251226090531,ORD004,it was bad,high,2025-12-26T09:05:31.985412,open

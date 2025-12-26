@@ -30,6 +30,8 @@ from dotenv import load_dotenv
 from document_processor import DocumentProcessor
 from rag_pipeline import RAGPipeline
 from evaluation import Evaluator
+from order_database import OrderDatabase
+from customer_service_agent import CustomerServiceAgent
 
 # Load environment variables from .env file
 load_dotenv()
@@ -103,6 +105,14 @@ rag_pipeline = RAGPipeline(
 
 # Initialize evaluator for system performance metrics
 evaluator = Evaluator(rag_pipeline)
+
+# Initialize customer service components
+ORDERS_CSV_PATH = os.getenv('ORDERS_CSV_PATH', 'data/orders.csv')
+order_database = OrderDatabase(csv_path=ORDERS_CSV_PATH)
+customer_service_agent = CustomerServiceAgent(
+    order_db=order_database,
+    rag_pipeline=rag_pipeline
+)
 
 
 def find_files(directory: str) -> List[str]:
@@ -532,7 +542,8 @@ def query():
         {
             "question": "What is the return policy?",  // Required
             "top_k": 5,                                // Optional, number of chunks to retrieve
-            "use_web_search": false                    // Optional, enable web search integration
+            "use_web_search": false,                   // Optional, enable web search integration
+            "prompt_template": "balanced"              // Optional, prompt template ('strict', 'balanced', 'permissive')
         }
     
     Returns:
@@ -552,7 +563,8 @@ def query():
         {
             "question": "What is Micro Center's return policy?",
             "top_k": 5,
-            "use_web_search": true
+            "use_web_search": true,
+            "prompt_template": "strict"
         }
     """
     # Parse and validate request
@@ -563,6 +575,14 @@ def query():
     question = data['question']
     top_k = data.get('top_k', TOP_K)  # Use default if not specified
     use_web_search = data.get('use_web_search', False)  # Web search is optional
+    prompt_template = data.get('prompt_template', 'balanced')  # Prompt template selection
+    
+    # Validate prompt template
+    valid_templates = ['strict', 'balanced', 'permissive']
+    if prompt_template not in valid_templates:
+        return jsonify({
+            'error': f'Invalid prompt_template. Must be one of: {", ".join(valid_templates)}'
+        }), 400
     
     try:
         # Step 1: Retrieve relevant document chunks using semantic search
@@ -588,7 +608,8 @@ def query():
             question=question,
             context_chunks=retrieved_chunks,
             use_web_search=use_web_search,
-            web_results=web_results
+            web_results=web_results,
+            prompt_template=prompt_template
         )
         
         # Step 4: Add policy disclaimer to answer
@@ -599,6 +620,7 @@ def query():
             'question': question,
             'answer': answer_with_disclaimer,
             'citations': citations,  # Both document and web citations
+            'prompt_template': prompt_template,  # Include template used in response
             'retrieved_chunks': [
                 {
                     'chunk_id': chunk['chunk_id'],
@@ -831,6 +853,261 @@ def web_search():
 
 
 # ============================================================================
+# CUSTOMER SERVICE ENDPOINTS
+# ============================================================================
+
+@app.route('/customer/query', methods=['POST'])
+def customer_query():
+    """
+    API endpoint: Customer service query with order lookup and policy retrieval.
+    
+    Main endpoint for customer service interactions. Automatically extracts order IDs
+    from queries, looks up order information, retrieves relevant policies, and provides
+    comprehensive answers with rich context.
+    
+    Request Body (JSON):
+        {
+            "query": "What's the status of order #12345?",  // Required
+            "customer_id": "CUST001",                        // Optional, for customer context
+            "prompt_template": "balanced"                    // Optional, prompt template
+        }
+    
+    Returns:
+        200 OK: Answer with order info, policies, and citations
+        {
+            "answer": "...",
+            "order_found": true,
+            "order_info": {...},
+            "citations": [...],
+            "retrieved_chunks": [...]
+        }
+        400 Bad Request: Query not provided
+        500 Internal Server Error: Query processing failure
+        
+    Example Request:
+        POST /customer/query
+        {
+            "query": "I want to return order #12345",
+            "customer_id": "CUST001"
+        }
+    """
+    data = request.get_json()
+    if not data or 'query' not in data:
+        return jsonify({'error': 'Query is required'}), 400
+    
+    query = data['query']
+    customer_id = data.get('customer_id', None)
+    prompt_template = data.get('prompt_template', 'balanced')
+    
+    try:
+        # Process customer query with order lookup and policy retrieval
+        result = customer_service_agent.process_customer_query(query, customer_id, prompt_template)
+        
+        # Add prompt template to response if custom one was used
+        result['prompt_template'] = prompt_template
+        
+        return jsonify(result), 200
+    
+    except Exception as e:
+        return jsonify({
+            'error': f'Customer query failed: {str(e)}'
+        }), 500
+
+
+@app.route('/customer/order/<order_id>', methods=['GET'])
+def get_order(order_id):
+    """
+    API endpoint: Get order information by ID.
+    
+    Retrieves detailed order information from the CSV database.
+    
+    Path Parameters:
+        order_id: Order identifier
+    
+    Returns:
+        200 OK: Order information
+        {
+            "success": true,
+            "order": {...},
+            "formatted_context": "..."
+        }
+        404 Not Found: Order not found
+        500 Internal Server Error: Retrieval failure
+        
+    Example Request:
+        GET /customer/order/12345
+    """
+    try:
+        result = customer_service_agent.get_order_info(order_id)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 404
+    
+    except Exception as e:
+        return jsonify({
+            'error': f'Failed to retrieve order: {str(e)}'
+        }), 500
+
+
+@app.route('/customer/order/<order_id>/status', methods=['PUT'])
+def update_order_status(order_id):
+    """
+    API endpoint: Update order status.
+    
+    Updates the status of an order in the CSV database.
+    
+    Path Parameters:
+        order_id: Order identifier
+    
+    Request Body (JSON):
+        {
+            "status": "shipped"  // Required, new status value
+        }
+    
+    Returns:
+        200 OK: Status updated successfully
+        {
+            "success": true,
+            "message": "...",
+            "order": {...}
+        }
+        400 Bad Request: Status not provided
+        404 Not Found: Order not found
+        500 Internal Server Error: Update failure
+        
+    Example Request:
+        PUT /customer/order/12345/status
+        {
+            "status": "shipped"
+        }
+    """
+    data = request.get_json()
+    if not data or 'status' not in data:
+        return jsonify({'error': 'Status is required'}), 400
+    
+    status = data['status']
+    
+    try:
+        result = customer_service_agent.update_order_status(order_id, status)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 404
+    
+    except Exception as e:
+        return jsonify({
+            'error': f'Failed to update order status: {str(e)}'
+        }), 500
+
+
+@app.route('/customer/ticket', methods=['POST'])
+def create_ticket():
+    """
+    API endpoint: Create a support ticket for an order.
+    
+    Creates a support ticket and associates it with an order.
+    
+    Request Body (JSON):
+        {
+            "order_id": "12345",           // Required
+            "issue": "Product defective",  // Required
+            "priority": "high"             // Optional, defaults to "medium"
+        }
+    
+    Returns:
+        200 OK: Ticket created successfully
+        {
+            "success": true,
+            "ticket": {...},
+            "message": "..."
+        }
+        400 Bad Request: Missing required fields
+        404 Not Found: Order not found
+        500 Internal Server Error: Ticket creation failure
+        
+    Example Request:
+        POST /customer/ticket
+        {
+            "order_id": "12345",
+            "issue": "Product arrived damaged",
+            "priority": "high"
+        }
+    """
+    data = request.get_json()
+    if not data or 'order_id' not in data or 'issue' not in data:
+        return jsonify({
+            'error': 'order_id and issue are required'
+        }), 400
+    
+    order_id = data['order_id']
+    issue = data['issue']
+    priority = data.get('priority', 'medium')
+    
+    try:
+        result = customer_service_agent.create_support_ticket(order_id, issue, priority)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 404
+    
+    except Exception as e:
+        return jsonify({
+            'error': f'Failed to create ticket: {str(e)}'
+        }), 500
+
+
+@app.route('/customer/search', methods=['POST'])
+def search_orders():
+    """
+    API endpoint: Search orders by customer name, email, or product.
+    
+    Searches the order database for matching orders.
+    
+    Request Body (JSON):
+        {
+            "query": "john@example.com"  // Required, search term
+        }
+    
+    Returns:
+        200 OK: List of matching orders
+        {
+            "results": [...],
+            "count": 5
+        }
+        400 Bad Request: Query not provided
+        500 Internal Server Error: Search failure
+        
+    Example Request:
+        POST /customer/search
+        {
+            "query": "john@example.com"
+        }
+    """
+    data = request.get_json()
+    if not data or 'query' not in data:
+        return jsonify({'error': 'Query is required'}), 400
+    
+    query = data['query']
+    
+    try:
+        results = order_database.search_orders(query)
+        
+        return jsonify({
+            'results': results,
+            'count': len(results)
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            'error': f'Search failed: {str(e)}'
+        }), 500
+
+
+# ============================================================================
 # SERVER STARTUP
 # ============================================================================
 
@@ -878,6 +1155,12 @@ if __name__ == '__main__':
     print("  POST /evaluate - Run evaluation")
     print("  GET /stats - Get statistics")
     print("  GET /health - Health check")
+    print("\nCustomer Service Endpoints:")
+    print("  POST /customer/query - Customer service query with order lookup")
+    print("  GET /customer/order/<order_id> - Get order information")
+    print("  PUT /customer/order/<order_id>/status - Update order status")
+    print("  POST /customer/ticket - Create support ticket")
+    print("  POST /customer/search - Search orders")
     
     # Print web search status
     print(f"\nWeb Search: {'Enabled' if ENABLE_WEB_SEARCH else 'Disabled'}")

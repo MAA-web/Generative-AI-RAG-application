@@ -6,13 +6,16 @@ import { motion } from "framer-motion";
 import clsx from "clsx";
 
 interface MessageInputProps {
-    onSendMessage: (content: string, useWebSearch: boolean) => void;
+    onSendMessage: (content: string, useWebSearch: boolean, promptTemplate: 'strict' | 'balanced' | 'permissive', mode: 'general' | 'customer') => void;
     isLoading?: boolean;
+    currentMode: 'general' | 'customer';
+    onModeChange: (mode: 'general' | 'customer') => void;
 }
 
-export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
+export function MessageInput({ onSendMessage, isLoading, currentMode, onModeChange }: MessageInputProps) {
     const [content, setContent] = useState("");
     const [useWebSearch, setUseWebSearch] = useState(false);
+    const [promptTemplate, setPromptTemplate] = useState<'strict' | 'balanced' | 'permissive'>('balanced');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -24,7 +27,7 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
 
     const handleSend = () => {
         if (!content.trim() || isLoading) return;
-        onSendMessage(content, useWebSearch);
+        onSendMessage(content, useWebSearch, promptTemplate, currentMode);
         setContent("");
     };
 
@@ -44,12 +47,30 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
                 <div className="absolute inset-0 bg-primary/20 blur-3xl opacity-0 group-focus-within:opacity-40 transition-opacity duration-700" />
 
                 <div className="relative liquid-glass border border-white/20 rounded-[2.5rem] p-3 shadow-2xl transition-all">
+                    <div className="flex gap-2 mb-2 p-2 px-3 border-b border-white/5">
+                        {(['general', 'customer'] as const).map((m) => (
+                            <button
+                                key={m}
+                                onClick={() => onModeChange(m)}
+                                className={clsx(
+                                    "px-4 py-2 rounded-2xl text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-2",
+                                    currentMode === m
+                                        ? "bg-white/10 text-white shadow-lg"
+                                        : "text-white/30 hover:text-white/60 hover:bg-white/5"
+                                )}
+                            >
+                                <span className={clsx("w-2 h-2 rounded-full", currentMode === m ? "bg-primary animate-pulse" : "bg-white/20")} />
+                                {m === 'general' ? 'Advanced AI' : 'Customer Support'}
+                            </button>
+                        ))}
+                    </div>
+
                     <textarea
                         ref={textareaRef}
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Ask AI anything..."
+                        placeholder={currentMode === 'customer' ? "Enter your order ID or question..." : "Ask AI anything..."}
                         className="w-full bg-transparent border-none focus:ring-0 resize-none max-h-48 min-h-[60px] py-4 px-6 text-[16px] md:text-[18px] font-medium placeholder:text-muted-foreground/30 scrollbar-hide leading-snug"
                         rows={1}
                     />
@@ -69,6 +90,23 @@ export function MessageInput({ onSendMessage, isLoading }: MessageInputProps) {
                                 <Globe size={20} />
                                 {useWebSearch && <span className="text-xs font-bold uppercase tracking-wider">Web Search</span>}
                             </button>
+                            <div className="h-6 w-px bg-white/10 mx-1" />
+                            <div className="flex bg-white/5 rounded-2xl p-1 gap-1">
+                                {(['strict', 'balanced', 'permissive'] as const).map((t) => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setPromptTemplate(t)}
+                                        className={clsx(
+                                            "px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all",
+                                            promptTemplate === t
+                                                ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                                : "text-muted-foreground/50 hover:text-foreground hover:bg-white/5"
+                                        )}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-3">

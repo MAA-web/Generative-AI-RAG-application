@@ -1,0 +1,11 @@
+order_id,customer_id,customer_name,customer_email,product_name,product_sku,quantity,price,order_date,status,shipping_address,tracking_number,return_eligible,warranty_status,notes
+ORD001,CUST001,John Smith,john.smith@email.com,Wireless Mouse,SKU-MOUSE-001,2,29.99,2024-12-01,delivered,"123 Main St, New York, NY 10001",TRACK123456,Yes,Active,Delivered on time
+ORD002,CUST001,John Smith,john.smith@email.com,Mechanical Keyboard,SKU-KB-002,1,89.99,2024-12-05,shipped,"123 Main St, New York, NY 10001",TRACK789012,Yes,Active,Expected delivery Dec 10
+ORD003,CUST002,Jane Doe,jane.doe@email.com,"Gaming Monitor 27""",SKU-MON-003,1,299.99,2024-12-10,processing,"456 Oak Ave, Los Angeles, CA 90001",,Yes,Active,Processing payment
+ORD004,CUST003,Bob Johnson,bob.j@email.com,USB-C Cable,SKU-CABLE-004,5,9.99,2024-11-25,delivered,"789 Pine Rd, Chicago, IL 60601",TRACK345678,Yes,Active,Delivered
+ORD005,CUST004,Alice Williams,alice.w@email.com,SSD 1TB,SKU-SSD-005,1,79.99,2024-12-15,shipped,"321 Elm St, Houston, TX 77001",TRACK901234,Yes,Active,In transit
+ORD006,CUST002,Jane Doe,jane.doe@email.com,Webcam HD,SKU-CAM-006,1,49.99,2024-12-12,delivered,"456 Oak Ave, Los Angeles, CA 90001",TRACK567890,Yes,Active,Delivered successfully
+ORD007,CUST005,Charlie Brown,charlie.b@email.com,Wireless Headphones,SKU-HEAD-007,1,129.99,2024-12-18,processing,"654 Maple Dr, Phoenix, AZ 85001",,Yes,Active,Processing
+ORD008,CUST001,John Smith,john.smith@email.com,USB Hub,SKU-HUB-008,1,24.99,2024-12-20,shipped,"123 Main St, New York, NY 10001",TRACK234567,Yes,Active,Shipped today
+ORD009,CUST006,Diana Prince,diana.p@email.com,External Hard Drive 2TB,SKU-HDD-009,1,89.99,2024-11-30,delivered,"987 Cedar Ln, Philadelphia, PA 19101",TRACK890123,Yes,Active,Delivered
+ORD010,CUST007,Frank Miller,frank.m@email.com,Graphics Card RTX 4060,SKU-GPU-010,1,299.99,2024-12-22,processing,"147 Birch Way, San Antonio, TX 78201",,Yes,Active,High-value item - signature required
