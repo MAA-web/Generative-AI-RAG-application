@@ -5,11 +5,17 @@ import { MessageItem, Message } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
 import { RAGThinking } from "./RAGThinking";
 import { SourceCard, Source } from "./SourceCard";
+import { OrderCard } from "./OrderCard";
+import { TicketModal } from "./TicketModal";
 import { motion, AnimatePresence } from "framer-motion";
-import { api } from "@/lib/api";
+import { api, OrderInfo } from "@/lib/api";
+
+interface MessageWithOrder extends Message {
+    order_info?: OrderInfo;
+}
 
 export function ChatInterface() {
-    const [messages, setMessages] = useState<Message[]>([
+    const [messages, setMessages] = useState<MessageWithOrder[]>([
         {
             id: "1",
             role: "ai",
@@ -19,28 +25,40 @@ export function ChatInterface() {
     ]);
     const [isTyping, setIsTyping] = useState(false);
     const [retrievedSources, setRetrievedSources] = useState<Source[]>([]);
+    const [agentMode, setAgentMode] = useState<'general' | 'customer'>('general');
+    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+    const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    const handleSendMessage = async (content: string, useWebSearch: boolean) => {
+    const handleSendMessage = async (content: string, useWebSearch: boolean, promptTemplate: 'strict' | 'balanced' | 'permissive', mode: 'general' | 'customer') => {
         // Add user message
-        const userMsg: Message = {
+        const userMsg: MessageWithOrder = {
             id: Date.now().toString(),
             role: "user",
             content,
             timestamp: new Date().toISOString()
         };
-        setMessages((prev: Message[]) => [...prev, userMsg]);
+        setMessages((prev: MessageWithOrder[]) => [...prev, userMsg]);
         setIsTyping(true);
         setRetrievedSources([]); // Reset sources for new query
 
         try {
-            const response = await api.query({
-                question: content,
-                use_web_search: useWebSearch
-            });
+            let response;
+            if (mode === 'customer') {
+                response = await api.customerQuery({
+                    query: content,
+                    prompt_template: promptTemplate
+                });
+            } else {
+                response = await api.query({
+                    question: content,
+                    use_web_search: useWebSearch,
+                    prompt_template: promptTemplate
+                });
+            }
 
             // Map API retrieved chunks to SourceCard format
-            const docSources: Source[] = response.retrieved_chunks.map(chunk => ({
+            const docSources: Source[] = response.retrieved_chunks.map((chunk: any) => ({
                 id: chunk.chunk_id,
                 title: chunk.source,
                 snippet: chunk.text,
@@ -48,7 +66,7 @@ export function ChatInterface() {
             }));
 
             // Map web results if available
-            const webSources: Source[] = (response.web_results || []).map((res, i) => ({
+            const webSources: Source[] = ((response as any).web_results || []).map((res: any, i: number) => ({
                 id: `web-${i}-${Date.now()}`,
                 title: res.title,
                 snippet: res.snippet,
@@ -58,25 +76,31 @@ export function ChatInterface() {
             setRetrievedSources([...docSources, ...webSources]);
 
             // Add AI response
-            const aiMsg: Message = {
+            const aiMsg: MessageWithOrder = {
                 id: (Date.now() + 1).toString(),
                 role: "ai",
                 content: response.answer,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                order_info: (response as any).order_info
             };
-            setMessages((prev: Message[]) => [...prev, aiMsg]);
+            setMessages((prev: MessageWithOrder[]) => [...prev, aiMsg]);
         } catch (error) {
             console.error("Query failed:", error);
-            const errorMsg: Message = {
+            const errorMsg: MessageWithOrder = {
                 id: (Date.now() + 1).toString(),
                 role: "ai",
                 content: "I'm sorry, I encountered an error while processing your request. Please ensure the backend is running.",
                 timestamp: new Date().toISOString()
             };
-            setMessages((prev: Message[]) => [...prev, errorMsg]);
+            setMessages((prev: MessageWithOrder[]) => [...prev, errorMsg]);
         } finally {
             setIsTyping(false);
         }
+    };
+
+    const handleCreateTicket = (orderId: string) => {
+        setSelectedOrderId(orderId);
+        setIsTicketModalOpen(true);
     };
 
     useEffect(() => {
@@ -95,6 +119,17 @@ export function ChatInterface() {
                     {messages.map((msg, index) => (
                         <div key={msg.id} className="relative">
                             <MessageItem message={msg} />
+
+                            {/* Show Order Card if available */}
+                            {msg.role === "ai" && msg.order_info && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="pl-16 mb-4 max-w-2xl"
+                                >
+                                    <OrderCard order={msg.order_info} onCreateTicket={handleCreateTicket} />
+                                </motion.div>
+                            )}
 
                             {/* Show RAG visualization after the latest AI message if sources exist */}
                             {msg.role === "ai" && index === messages.length - 1 && retrievedSources.length > 0 && (
@@ -130,9 +165,20 @@ export function ChatInterface() {
 
             <div className="flex-shrink-0 z-30 absolute bottom-0 left-0 right-0 pointer-events-none">
                 <div className="pointer-events-auto">
-                    <MessageInput onSendMessage={handleSendMessage} isLoading={isTyping} />
+                    <MessageInput
+                        onSendMessage={handleSendMessage}
+                        isLoading={isTyping}
+                        currentMode={agentMode}
+                        onModeChange={setAgentMode}
+                    />
                 </div>
             </div>
+
+            <TicketModal
+                isOpen={isTicketModalOpen}
+                onClose={() => setIsTicketModalOpen(false)}
+                orderId={selectedOrderId || ""}
+            />
         </div>
     );
 }

@@ -54,7 +54,8 @@ class LLMClient:
         if not self.api_key and self.provider == 'gemini':
             print(f"Warning: No API key provided for {provider}. Set LLM_API_KEY or GEMINI_API_KEY environment variable.")
     
-    def generate(self, prompt: str, context: Optional[str] = None, max_tokens: int = 512) -> str:
+    def generate(self, prompt: str, context: Optional[str] = None, max_tokens: int = 512, 
+                 template: str = 'balanced') -> str:
         """
         Generate text using the LLM.
         
@@ -62,20 +63,21 @@ class LLMClient:
             prompt: User question/prompt
             context: Retrieved context to include
             max_tokens: Maximum tokens to generate
+            template: Prompt template to use ('strict', 'balanced', 'permissive')
             
         Returns:
             Generated text response
         """
         if self.provider == 'gemini':
-            return self._call_gemini(prompt, context, max_tokens)
+            return self._call_gemini(prompt, context, max_tokens, template)
         elif self.provider == 'openai':
-            return self._call_openai(prompt, context, max_tokens)
+            return self._call_openai(prompt, context, max_tokens, template)
         elif self.provider == 'anthropic':
-            return self._call_anthropic(prompt, context, max_tokens)
+            return self._call_anthropic(prompt, context, max_tokens, template)
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
     
-    def _call_gemini(self, prompt: str, context: Optional[str], max_tokens: int) -> str:
+    def _call_gemini(self, prompt: str, context: Optional[str], max_tokens: int, template: str = 'balanced') -> str:
         """
         Call Google Gemini API using the SDK (preferred) or HTTP API (fallback).
         
@@ -83,6 +85,7 @@ class LLMClient:
             prompt: User question
             context: Retrieved context from documents
             max_tokens: Maximum tokens to generate (currently not used with SDK)
+            template: Prompt template to use ('strict', 'balanced', 'permissive')
             
         Returns:
             Generated text response from Gemini
@@ -92,7 +95,7 @@ class LLMClient:
             is not available. The SDK method is simpler and more reliable.
         """
         # Build RAG-specific prompt with context
-        full_prompt = self._build_rag_prompt(prompt, context)
+        full_prompt = self._build_rag_prompt(prompt, context, template)
         
         # Try SDK method first (preferred - simpler and more reliable)
         if GEMINI_SDK_AVAILABLE and self.gemini_client:
@@ -145,14 +148,14 @@ class LLMClient:
         except requests.exceptions.RequestException as e:
             raise ValueError(f"Gemini API call failed: {str(e)}")
     
-    def _call_openai(self, prompt: str, context: Optional[str], max_tokens: int) -> str:
+    def _call_openai(self, prompt: str, context: Optional[str], max_tokens: int, template: str = 'balanced') -> str:
         """Call OpenAI API."""
         if not self.api_key:
             return self._fallback_response(prompt, context)
         
         url = "https://api.openai.com/v1/chat/completions"
         
-        full_prompt = self._build_rag_prompt(prompt, context)
+        full_prompt = self._build_rag_prompt(prompt, context, template)
         
         headers = {
             'Content-Type': 'application/json',
@@ -184,14 +187,14 @@ class LLMClient:
         except requests.exceptions.RequestException as e:
             raise ValueError(f"OpenAI API call failed: {str(e)}")
     
-    def _call_anthropic(self, prompt: str, context: Optional[str], max_tokens: int) -> str:
+    def _call_anthropic(self, prompt: str, context: Optional[str], max_tokens: int, template: str = 'balanced') -> str:
         """Call Anthropic Claude API."""
         if not self.api_key:
             return self._fallback_response(prompt, context)
         
         url = "https://api.anthropic.com/v1/messages"
         
-        full_prompt = self._build_rag_prompt(prompt, context)
+        full_prompt = self._build_rag_prompt(prompt, context, template)
         
         headers = {
             'Content-Type': 'application/json',
@@ -223,7 +226,7 @@ class LLMClient:
         except requests.exceptions.RequestException as e:
             raise ValueError(f"Anthropic API call failed: {str(e)}")
     
-    def _build_rag_prompt(self, question: str, context: Optional[str]) -> str:
+    def _build_rag_prompt(self, question: str, context: Optional[str], template: str = 'balanced') -> str:
         """
         Build RAG-specific prompt for LLM generation.
         
@@ -236,13 +239,61 @@ class LLMClient:
         Args:
             question: User's question
             context: Retrieved context from documents (and optionally web search)
+            template: Prompt template to use ('strict', 'balanced', 'permissive')
+                - 'strict': Maximum faithfulness, explicit anti-hallucination warnings
+                - 'balanced': Moderate approach (default)
+                - 'permissive': Allows some general knowledge but emphasizes context
             
         Returns:
             Formatted prompt string ready for LLM API call
         """
         if context:
-            # Prompt with context - instructs LLM to use only provided information
-            prompt = f"""You are a helpful customer service assistant for Micro Center, an electronics and computer retailer. Answer the user's question using ONLY the provided context from Micro Center's policy documents. Do not use any external knowledge.
+            if template == 'strict':
+                # Template 1: STRICT - Maximum faithfulness, explicit anti-hallucination
+                prompt = f"""You are a customer service assistant for Micro Center. CRITICAL: You must ONLY use information from the provided context. DO NOT use any external knowledge, assumptions, or information not explicitly stated in the context.
+
+ANTI-HALLUCINATION RULES:
+- If information is not in the context, you MUST say "I don't have that information in the policy documents"
+- DO NOT infer, assume, or guess any details not explicitly stated
+- DO NOT add information from your training data
+- If the context is unclear or incomplete, explicitly state this limitation
+
+Context from policy documents:
+{context}
+
+Question: {question}
+
+REQUIRED RESPONSE FORMAT:
+1. Answer ONLY using information directly from the context above
+2. If the answer is not in the context, respond: "I don't have specific information about this in the policy documents. Please contact Micro Center customer service for assistance."
+3. Include exact citations: [Source: document_name]
+4. Do not paraphrase in ways that add information not in the context
+5. If you're uncertain, state your uncertainty clearly
+
+Answer:"""
+            
+            elif template == 'permissive':
+                # Template 3: PERMISSIVE - Allows some general knowledge but emphasizes context
+                prompt = f"""You are a helpful customer service assistant for Micro Center, an electronics and computer retailer. Answer the user's question primarily using the provided context, but you may supplement with general knowledge about retail policies if the context doesn't fully address the question.
+
+Context from policy documents:
+{context}
+
+Question: {question}
+
+Instructions:
+1. Prioritize information from the provided context above all else
+2. If the context provides partial information, you may use general retail knowledge to provide a more complete answer, but clearly distinguish between what's from the documents vs. general knowledge
+3. If the context doesn't contain relevant information, you may provide general guidance but always suggest contacting customer service for specific details
+4. Include citations for information from the context (e.g., [Source: document_name])
+5. Be helpful, accurate, and customer-friendly
+6. Focus on policies related to returns, exchanges, warranties, shipping, refunds, and store information
+
+Answer:"""
+            
+            else:
+                # Template 2: BALANCED - Moderate approach (default)
+                prompt = f"""You are a helpful customer service assistant for Micro Center, an electronics and computer retailer. Answer the user's question using ONLY the provided context from Micro Center's policy documents. Do not use any external knowledge.
 
 Context from policy documents:
 {context}
